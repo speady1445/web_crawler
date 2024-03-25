@@ -23,7 +23,26 @@ function getURLsFromHTML(htmlBody, baseURL) {
     return links;
 }
 
+async function crawlPage(url) {
+    try {
+        const response = await fetch(url);
+        if (response.status > 399) {
+            console.log(`Response status ${response.status} while fetching ${url}`);
+            return;
+        }
+        if (!response.headers.get('Content-Type').includes('text/html')) {
+            console.log(`Wrong content header while fetching ${url}`);
+            return;
+        }
+        console.log(await response.text());
+    } catch (err) {
+        console.log(`Error while fetching ${url}/n`, err);
+        return;
+    }
+}
+
 module.exports = {
     normalizeURL,
-    getURLsFromHTML
+    getURLsFromHTML,
+    crawlPage
 }
