@@ -14,31 +14,61 @@ function getURLsFromHTML(htmlBody, baseURL) {
     const aElements = dom.window.document.querySelectorAll('a');
     const links = [];
     for (const aElement of aElements) {
-        if (aElement.href.slice(0, 1) === "/") {
-            links.push(`${baseURL}${aElement.href}`);
-        } else {
-            links.push(aElement.href);
+        try {
+            if (aElement.href.slice(0, 1) === "/") {
+                links.push(new URL(aElement.href, baseURL).href);
+            } else {
+                links.push(new URL(aElement.href).href);
+            }
+        } catch (err) {
+            console.log(`${err.message}: ${aElement.href}`);
         }
     }
     return links;
 }
 
-async function crawlPage(url) {
+async function crawlPage(baseURL) {
+    const pages = {};
+    await crawlPageRecursive(baseURL, baseURL, pages);
+    pages[normalizeURL(baseURL)]--;
+    return pages;
+}
+
+async function crawlPageRecursive(baseURL, currentURL, pages) {
+    if (new URL(baseURL).hostname !== new URL(currentURL).hostname) {
+        return pages;
+    }
+
+    const currentNormalizedUrl = normalizeURL(currentURL);
+    if (!(pages[currentNormalizedUrl] === undefined)) {
+        pages[currentNormalizedUrl]++;
+        return pages;
+    }
+    pages[currentNormalizedUrl] = 1;
+
+    let htmlBody = '';
     try {
-        const response = await fetch(url);
+        console.log(`Crawling ${currentURL}`);
+        const response = await fetch(currentURL);
         if (response.status > 399) {
-            console.log(`Response status ${response.status} while fetching ${url}`);
-            return;
+            console.log(`  Response status ${response.status} while fetching ${currentURL}`);
+            return pages;
         }
         if (!response.headers.get('Content-Type').includes('text/html')) {
-            console.log(`Wrong content header while fetching ${url}`);
-            return;
+            console.log(`  Wrong content header while fetching ${currentURL}`);
+            return pages;
         }
-        console.log(await response.text());
+        htmlBody = await response.text();
     } catch (err) {
-        console.log(`Error while fetching ${url}/n`, err);
-        return;
+        console.log(err);
     }
+
+    const urlsFound = getURLsFromHTML(htmlBody, baseURL);
+    for (const nextUrl of urlsFound) {
+        await crawlPageRecursive(baseURL, nextUrl, pages);
+    }
+
+    return pages
 }
 
 module.exports = {
